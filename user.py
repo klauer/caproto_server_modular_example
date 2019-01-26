@@ -1,38 +1,33 @@
-from caproto.server import pvproperty
+from caproto.server import pvproperty, PVGroup
 from caproto import ChannelType
 
-from pvdict import PVDict
 
-class User(PVDict):
-    def __init__(self, id, name):
-        super().__init__(f'user:{id}:')
+class User(PVGroup):
+    name = pvproperty(read_only=True,
+                      dtype=ChannelType.STRING)
+    say_hello = pvproperty(value=0,
+                           dtype=ChannelType.INT)
+    use_machine = pvproperty(value=0,
+                             dtype=ChannelType.INT)
+
+    def __init__(self, prefix, id, name, ioc):
+        super().__init__(f'{prefix}user:{id}:')
         self.id = id
-        self.name = name
         self.uses = None
-        self.pvprops['name'] = pvproperty(
-                name = f'{self.pvprefix}name',
-                value = self.name,
-                read_only = True,
-                dtype = ChannelType.STRING)
-        self.pvprops['say_hello'] = pvproperty(
-                name = f'{self.pvprefix}say_hello',
-                value = 0,
-                dtype = ChannelType.INT,
-                doc = self,
-                put = User.say_hello)
-        self.pvprops['use_machine'] = pvproperty(
-                name = f'{self.pvprefix}use_machine',
-                value = 0,
-                dtype = ChannelType.INT,
-                doc = self,
-                put = User.use_machine)
+        self._name = name
+        self.ioc = ioc
 
+    @name.startup
+    async def name(self, instance, async_lib):
+        await self.name.write(self._name)
+
+    @say_hello.putter
     async def say_hello(self, instance, value):
-        user = instance.__doc__
-        print(f"hi, I'm {user.name}")
+        print(f"hi, I'm {self.name.value}")
 
+    @use_machine.putter
     async def use_machine(self, instance, value):
-        user = instance.__doc__
-        self.messages.put({'cmd': 'use_machine', 'user': user.id,
+        self.ioc.messages.put(
+            {'cmd': 'use_machine',
+             'user': self.id,
             'machine': value})
-

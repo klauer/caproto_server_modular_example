@@ -25,7 +25,8 @@ def run_dispatcher():
             print(f'got message: {msg}')
             try:
                 handle_message(msg)
-
+            except Exception:
+                ...
         time.sleep(0.5)
 
 def handle_message(message):
@@ -38,37 +39,30 @@ def handle_message(message):
 
 if __name__ == "__main__":
     ioc_options, run_options = ioc_arg_parser(
-            default_prefix = 'toy:',
-            desc = 'a toy IOC server'
-        )
+            default_prefix='toy:',
+            desc='a toy IOC server'
+    )
 
+    ioc = SimpleIOC(**ioc_options)
 
+    prefix = ioc_options['prefix']
     for i in range(1,5):
-        u = User(i, f'user_{i}')
+        u = User(prefix, i, f'user_{i}', ioc=ioc)
         users[u.id] = u
+        ioc.pvdb.update(**u.pvdb)
 
     for i in range(1,3):
-        m = Machine(i, f'machine_{i}')
+        m = Machine(prefix, i, f'machine_{i}')
         machines[m.id] = m
+        ioc.pvdb.update(**m.pvdb)
 
-    external_pvprops = {}
-
-    for k,v in users.items():
-        v.exportPvs(external_pvprops)
-    for k,v in machines.items():
-        v.exportPvs(external_pvprops)
-
-    more_props = {}
+    other_groups = {}
     for i in range(1,6):
-        more_props[f'g{i}'] = SubGroup(Group, prefix=f'group{i}:')
+        group = Group(prefix=f'{prefix}group{i}:')
+        other_groups[i] = group
+        ioc.pvdb.update(**group.pvdb)
 
-    external_pvprops.update(more_props)
-
-    FullIOC = type('FullIOC', (SimpleIOC,), external_pvprops)
-
-    ioc = FullIOC(**ioc_options)
-
-    dispatcher_thread = Thread(target = run_dispatcher)
+    dispatcher_thread = Thread(target=run_dispatcher)
     dispatcher_thread.start()
 
     run(ioc.pvdb, **run_options)
